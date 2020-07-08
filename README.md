@@ -1,1 +1,1 @@
-# ZuoLab_behavior_analysis
+# ZuoLab_behavioral_analysis
