@@ -26,7 +26,10 @@ arena_width_pxl = 326
 calibration = ((arena_length_pxl / arena_length_cm) +  (arena_width_pxl / arena_width_cm)) / 2 #1cm = n pxl
 
 objL = (230, 230) #object coorinates - left column
+objLradius = 50
 objR = (428, 225) #object coorinates - right column
+objRradius = 50
+
 FOV_deg = 240 #FOV in degrees
 cFOV_deg = 120 #centralFOV in degrees
 #convert deg to rad:  n deg * (pi/180) = n rad
@@ -36,11 +39,11 @@ cFOV_rad = cFOV_deg * (math.pi / 180) #cFOV in radians
 FOV05_rad = FOV_rad * 0.5
 cFOV05_rad = cFOV_rad * 0.5
 
-def fn_parameters_log (file, fps, calibration, objL, objR, FOV_deg, cFOV_deg):
+def fn_parameters_log (file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg):
     log_table = []
-    log = ('file', 'fps', 'calibration', 'objL_x', 'objL_y', 'objR_x', 'objR_y', 'FOVdeg', 'cFOVdeg')
+    log = ('file', 'fps', 'calibration', 'objL_x', 'objL_y', 'objLradius', 'objR_x', 'objR_y', 'objRradius', 'FOVdeg', 'cFOVdeg')
     log_table.append(log)
-    log = (file, fps, calibration, objL, objR, FOV_deg, cFOV_deg)
+    log = (file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg)
     log_table.append(log)
     return log_table
 
@@ -73,88 +76,76 @@ def fn_body_part (body_part, xy, line):
             body_part = float(line.split(',')[14].strip())
     return body_part
 
-# fn_nose_velocity - returns table with velocity in pxl for each frame
-def fn_nose_velocity (file):
+def fn_bpart_obj_distance (body_part, obj, line):
+    try:
+        bpartx = fn_body_part(body_part, 'x', line)
+        bparty = fn_body_part(body_part, 'y', line)
+        dx = obj[0] - bpartx
+        dy = obj[1] - bparty
+        distance = math.hypot(dx, dy) 
+    except ValueError:
+        #print("error")
+        distance = 'NaN'
+    return distance
+
+def fn_bpart_obj_distance_table (file, body_part, obj, closer="false"):
     lines = open(file).readlines()
-    nose_velocity_table = []
-    nose_velocity = 0
-    previous_nosex = 0
-    previous_nosey = 0
+    bpart_obj_distance_table = []
+    for line in lines[3:]:
+        try:
+            if closer == 'true':
+                obj = fn_closer_obj('nose', objL, objR, line)
+            bpart_obj_distance = fn_bpart_obj_distance(body_part, obj, line)
+            bpart_obj_distance_table.append(bpart_obj_distance)
+        except ValueError:
+            #print("error")
+            bpart_obj_distance_table.append("NaN")
+    return bpart_obj_distance_table
+
+def fn_closer_obj (body_part, objL, objR, line): 
+    if fn_bpart_obj_distance(body_part, objL, line) < fn_bpart_obj_distance(body_part, objR, line):
+        closer_obj = objL
+    else: 
+        closer_obj = objR
+    return closer_obj
+
+def fn_closer_obj_table (file, body_part, objL, objR):
+    lines = open(file).readlines()
+    closer_obj_table = []
+    for line in lines[3:]:
+        try:
+            closer_obj = fn_closer_obj (body_part, objL, objR, line)
+            closer_obj_table.append(closer_obj)
+        except ValueError:
+            #print("error")
+            closer_obj_table.append("NaN")
+    return closer_obj_table
+
+
+# fn_bpart_velocity - for selected bodypart returns table with velocity in cm/s for each frame
+def fn_bpart_velocity (file, body_part):
+    lines = open(file).readlines()
+    bpart_velocity_table = []
+    bpart_velocity = 0
+    previous_bpartx = 0
+    previous_bparty = 0
     for line in lines[3:]:
         #print(line)
         try:
-            nosex = fn_body_part('nose', 'x', line)
-            nosey = fn_body_part('nose', 'y', line)
-            dx = nosex - previous_nosex
-            dy = nosey - previous_nosey
-            nose_velocity = math.hypot(dx, dy) * fps / calibration #math.hypot - returns the Euclidean distance
-            nose_velocity_table.append(nose_velocity)
+            bpartx = fn_body_part(body_part, 'x', line)
+            bparty = fn_body_part(body_part, 'y', line)
+            dx = bpartx - previous_bpartx
+            dy = bparty - previous_bparty
+            bpart_velocity = math.hypot(dx, dy) * fps / calibration #math.hypot - returns the Euclidean distance
+            bpart_velocity_table.append(bpart_velocity)
         except ValueError:
             #print("error")
-            nose_velocity_table.append("NaN")
-        previous_nosex = nosex
-        previous_nosey = nosey
-    return nose_velocity_table[1:]
+            bpart_velocity_table.append("NaN")
+        previous_bpartx = bpartx
+        previous_bparty = bparty
+    return bpart_velocity_table[1:]
 
-# fn_body_velocity - returns table with velocity in pxl for each frame
-def fn_body_velocity (file):
-    lines = open(file).readlines()
-    body_velocity_table = []
-    body_velocity = 0
-    previous_bodyx = 0
-    previous_bodyy = 0
-    for line in lines[3:]:
-        #print(line)
-        try:
-            bodyx = fn_body_part('body', 'x', line)
-            bodyy = fn_body_part('body', 'y', line)
-            dx = bodyx - previous_bodyx
-            dy = bodyy - previous_bodyy
-            body_velocity = math.hypot(dx, dy) * fps / calibration #math.hypot - returns the Euclidean distance
-            body_velocity_table.append(body_velocity)
-        except ValueError:
-            #print("error")
-            body_velocity_table.append("NaN")
-        previous_bodyx = bodyx
-        previous_bodyy = bodyy
-    return body_velocity_table[1:]
-
-def fn_head_nose_vector (file):
-    lines = open(file).readlines()
-    head_nose_vector_table = []
-    for line in lines[3:]:
-        #print(line)
-        try:
-            headx = fn_body_part('head', 'x', line)
-            heady = fn_body_part('head', 'y', line)
-            nosex = fn_body_part('nose', 'x', line)
-            nosey = fn_body_part('nose', 'y', line)
-            dx = nosex - headx
-            dy = nosey - heady
-            head_nose_vector = (dx, dy)
-            head_nose_vector_table.append(head_nose_vector)
-        except ValueError:
-            #print("error")
-            head_nose_vector_table.append("NaN")
-    return head_nose_vector_table
-
-def fn_head_obj_vector (file, obj):
-    lines = open(file).readlines()
-    head_obj_vector_table = []
-    for line in lines[3:]:
-        #print(line)
-        try:
-            headx = fn_body_part('head', 'x', line)
-            heady = fn_body_part('head', 'y', line)
-            dx = obj[0] - headx
-            dy = obj[1] - heady
-            head_obj_vector = (dx, dy)
-            head_obj_vector_table.append(head_obj_vector)
-        except ValueError:
-            #print("error")
-            head_obj_vector_table.append("NaN")
-    return head_obj_vector_table
-
+# fn_angle_head_nose_obj - for selected object returns table with vectors and 0;1 for is in FOV and cFOV for each frame
 def fn_angle_head_nose_obj (file, obj):
     lines = open(file).readlines()
     angle_head_nose_obj_table = []
@@ -203,28 +194,55 @@ def fn_angle_head_nose_obj (file, obj):
             angle_head_nose_obj_table.append("NaN", "NaN", "NaN", "NaN", "NaN")
     return angle_head_nose_obj_table
 
+def fn_bpart_inROI (file, body_part, obj, radius):
+    lines = open(file).readlines()
+    bpart_inROI_table = []
+    for line in lines[3:]:
+        #print(line)
+        try:
+            distance = fn_bpart_obj_distance(body_part, obj, line)
+            if distance <= radius:
+                bpart_inROI = 1
+            else:
+                bpart_inROI = 0
+            
+            bpart_inROI_table.append(bpart_inROI)
+        except ValueError:
+            #print("error")
+            bpart_inROI_table.append("NaN")
+    return bpart_inROI_table    
+
 print("done")
 
 np.savetxt(file[0:-4]+'_parameters_log.csv', 
-           fn_parameters_log(file, fps, calibration, objL, objR, FOV_deg, cFOV_deg), delimiter=',', fmt="%s")
+           fn_parameters_log(file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg), delimiter=',', fmt="%s")
 
 np.savetxt(file[0:-4]+'_nose_velocity.csv', 
-           fn_nose_velocity(file), delimiter=',', fmt="%s")
+           fn_bpart_velocity(file, 'nose'), delimiter=',', fmt="%s")
 
 np.savetxt(file[0:-4]+'_body_velocity.csv', 
-           fn_body_velocity(file), delimiter=',', fmt="%s")
-
-np.savetxt(file[0:-4]+'_head_nose_vector.csv', 
-           fn_head_nose_vector(file), delimiter=',', fmt="%s")
-
-np.savetxt(file[0:-4]+'_head_objL_vector.csv', 
-           fn_head_obj_vector(file, objL), delimiter=',', fmt="%s")
+           fn_bpart_velocity(file, 'body'), delimiter=',', fmt="%s")
 
 np.savetxt(file[0:-4]+'_angle_head_nose_objL.csv', 
            fn_angle_head_nose_obj(file, objL), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_head_objR_vector.csv', 
-           fn_head_obj_vector(file, objR), delimiter=',', fmt="%s")
-
 np.savetxt(file[0:-4]+'_angle_head_nose_objR.csv', 
            fn_angle_head_nose_obj(file, objR), delimiter=',', fmt="%s")
+
+np.savetxt(file[0:-4]+'_ROI_nose_objL.csv', 
+           fn_bpart_inROI(file, 'nose', objL, objLradius), delimiter=',', fmt="%s")
+
+np.savetxt(file[0:-4]+'_ROI_nose_objR.csv', 
+           fn_bpart_inROI(file, 'nose', objR, objRradius), delimiter=',', fmt="%s")
+
+np.savetxt(file[0:-4]+'_nose_objL_distance.csv', 
+           fn_bpart_obj_distance_table(file, 'nose', objL), delimiter=',', fmt="%s")
+
+np.savetxt(file[0:-4]+'_nose_objR_distance.csv', 
+           fn_bpart_obj_distance_table(file, 'nose', objR), delimiter=',', fmt="%s")
+
+np.savetxt(file[0:-4]+'_closer_obj.csv', 
+           fn_closer_obj_table(file, 'nose', objL, objR), delimiter=',', fmt="%s")
+
+np.savetxt(file[0:-4]+'_nose_closer_obj_distance.csv', 
+           fn_bpart_obj_distance_table(file, 'nose', 1, 'true'), delimiter=',', fmt="%s")
