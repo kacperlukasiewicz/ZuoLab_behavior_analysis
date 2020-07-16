@@ -5,17 +5,51 @@ Created on Wed Jul  1 14:47:57 2020
 @author: Kacper
 """
 
+'''
+Pipeline:
+1. copy files (.csv, .avi or .mp4)
+2. check path_name
+3. add file_name variables
+4. choose analysis_type
+4. check video_input
+5. run imports and _names
+6. run calibration
+7. create bcg_frame
+8. modify obj coordinates
+9. execute functions and generate selected output files (analysis_type!)
+'''
+
 #functions for behavioral analysis
 
+#%%
+import os
 import numpy as np
 import math
+from matplotlib import pyplot as plt
+import matplotlib.cm as cm
+from PIL import Image
 
+#%%
+path_name = 'C:\\Users\\Kacper\\Documents\\ASD_computational_ethology\\Fmr1KO_analysis\\FXG11_WT_M_RR'
+#file_name = 'FXG10_WT_M_LR_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG10_WT_M_LR_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG10_WT_M_LR_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
 
-path_name = 'C:\\Users\\Kacper\\Documents\\ASD_computational_ethology\\KL011_enc-sample'
-file_name = 'KL011-encDLC_resnet50_texture_sucroseJun18shuffle1_126000.csv'
+#file_name = 'FXG11_WT_M_LL_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG11_WT_M_LL_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG11_WT_M_LL_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+
+#file_name = 'FXG11_WT_M_RR_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG11_WT_M_RR_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+file_name = 'FXG11_WT_M_RR_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+
 file = path_name + '\\' + file_name
 print(file)
 
+# choose analysis_type = ('hab', 'enc', 'test')
+analysis_type = 'test'
+
+#%%
 # video calibration
 fps = 30
 # arena measured from upper left to lower right corner
@@ -24,11 +58,6 @@ arena_width_cm = 28
 arena_length_pxl = 455
 arena_width_pxl = 326
 calibration = ((arena_length_pxl / arena_length_cm) +  (arena_width_pxl / arena_width_cm)) / 2 #1cm = n pxl
-
-objL = (230, 230) #object coorinates - left column
-objLradius = 50
-objR = (428, 225) #object coorinates - right column
-objRradius = 50
 
 FOV_deg = 240 #FOV in degrees
 cFOV_deg = 120 #centralFOV in degrees
@@ -39,6 +68,20 @@ cFOV_rad = cFOV_deg * (math.pi / 180) #cFOV in radians
 FOV05_rad = FOV_rad * 0.5
 cFOV05_rad = cFOV_rad * 0.5
 
+#%%
+# bcg frame extraction
+#video_input = file[0:-4]+'_labeled.mp4'
+video_input = file[0:-41]+'.avi'
+bcg_frame_name = file[0:-4]+'_frame01.png'
+os.system('ffmpeg -ss 00:00:01 -i {0} -vframes 1 -q:v 2 {1}'.format(video_input, bcg_frame_name))
+
+#%%
+objL = (229, 236) #object coorinates - left column
+objLradius = 50
+objR = (429, 236) #object coorinates - right column
+objRradius = 50
+
+#%%
 def fn_parameters_log (file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg):
     log_table = []
     log = ('file', 'fps', 'calibration', 'objL_x', 'objL_y', 'objLradius', 'objR_x', 'objR_y', 'objRradius', 'FOVdeg', 'cFOVdeg')
@@ -76,6 +119,20 @@ def fn_body_part (body_part, xy, line):
             body_part = float(line.split(',')[14].strip())
     return body_part
 
+def fn_body_part_table (file, body_part, xy):
+    lines = open(file).readlines()
+    body_part_table = []
+    for line in lines[3:]:
+        #print(line)
+        try:
+            record = fn_body_part(body_part, xy, line)
+            #print(body_part)
+            body_part_table.append(record)
+        except ValueError:
+            #print("error")
+            body_part_table.append("NaN")
+    return body_part_table[1:]
+
 def fn_bpart_obj_distance (body_part, obj, line):
     try:
         bpartx = fn_body_part(body_part, 'x', line)
@@ -100,7 +157,7 @@ def fn_bpart_obj_distance_table (file, body_part, obj, closer="false"):
         except ValueError:
             #print("error")
             bpart_obj_distance_table.append("NaN")
-    return bpart_obj_distance_table
+    return bpart_obj_distance_table[1:]
 
 def fn_closer_obj (body_part, objL, objR, line): 
     if fn_bpart_obj_distance(body_part, objL, line) < fn_bpart_obj_distance(body_part, objR, line):
@@ -212,8 +269,46 @@ def fn_bpart_inROI (file, body_part, obj, radius):
             bpart_inROI_table.append("NaN")
     return bpart_inROI_table    
 
+# sqrt transformation
+def fn_sqrt_bpart_velocity (table):
+    length = len(fn_bpart_velocity (file, 'body'))
+    for record in range(length):
+        table[record] = math.sqrt(table[record])
+    return table
+
+def fn_save_bodypart_velocity_plot (file, bodypart, bcg_filename):
+    #plotting position
+    img_name = bcg_filename
+    img  = Image.open(img_name)
+    #plt.imshow(img)
+    
+    plt.figure()
+    plt.set_cmap('gray')
+    plt.imshow(img, alpha=0.5)
+    #color = 'r'
+    #plt.plot(fn_body_part_table(file, 'nose', 'x'), fn_body_part_table(file, 'nose', 'y'), color)
+    #m = cm.ScalarMappable(norm=norm, cmap=cmap)
+    # https://matplotlib.org/3.2.2/api/_as_gen/matplotlib.pyplot.scatter.html#matplotlib.pyplot.scatter
+    plt.scatter(fn_body_part_table(file, bodypart, 'x'), 
+                fn_body_part_table(file, bodypart, 'y'), 
+                c=cm.jet(fn_bpart_velocity (file, bodypart)),
+                #https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+                #c=cm.jet(fn_norm_bpart_velocity(fn_bpart_velocity (file, 'nose'))),
+                marker = '.')
+    plt.savefig(file[0:-4]+ '_' + bodypart + '_velocity_plot.png')
+
+
+#for filename in os.listdir(path):
+#    if (filename.endswith(".mp4")): #or .avi, .mpeg, whatever.
+#        os.system("ffmpeg -i {0} -f image2 -vf fps=fps=1 output%d.png".format(filename))
+#    else:
+#        continue
+
+
 print("done")
 
+
+#%%
 np.savetxt(file[0:-4]+'_parameters_log.csv', 
            fn_parameters_log(file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg), delimiter=',', fmt="%s")
 
@@ -223,26 +318,40 @@ np.savetxt(file[0:-4]+'_nose_velocity.csv',
 np.savetxt(file[0:-4]+'_body_velocity.csv', 
            fn_bpart_velocity(file, 'body'), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_angle_head_nose_objL.csv', 
-           fn_angle_head_nose_obj(file, objL), delimiter=',', fmt="%s")
+#np.savetxt(file[0:-4]+'_body_velocity_sqrt.csv', 
+#           fn_sqrt_bpart_velocity(fn_bpart_velocity (file, 'body')), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_angle_head_nose_objR.csv', 
-           fn_angle_head_nose_obj(file, objR), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_ROI_nose_objL.csv', 
-           fn_bpart_inROI(file, 'nose', objL, objLradius), delimiter=',', fmt="%s")
+if analysis_type == 'enc' or analysis_type == 'test':
+    np.savetxt(file[0:-4]+'_angle_head_nose_objL.csv', 
+               fn_angle_head_nose_obj(file, objL), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_ROI_nose_objR.csv', 
-           fn_bpart_inROI(file, 'nose', objR, objRradius), delimiter=',', fmt="%s")
+    np.savetxt(file[0:-4]+'_angle_head_nose_objR.csv', 
+               fn_angle_head_nose_obj(file, objR), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_nose_objL_distance.csv', 
-           fn_bpart_obj_distance_table(file, 'nose', objL), delimiter=',', fmt="%s")
+    np.savetxt(file[0:-4]+'_ROI_nose_objL.csv', 
+               fn_bpart_inROI(file, 'nose', objL, objLradius), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_nose_objR_distance.csv', 
-           fn_bpart_obj_distance_table(file, 'nose', objR), delimiter=',', fmt="%s")
+    np.savetxt(file[0:-4]+'_ROI_nose_objR.csv', 
+               fn_bpart_inROI(file, 'nose', objR, objRradius), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_closer_obj.csv', 
-           fn_closer_obj_table(file, 'nose', objL, objR), delimiter=',', fmt="%s")
+    np.savetxt(file[0:-4]+'_nose_objL_distance.csv', 
+               fn_bpart_obj_distance_table(file, 'nose', objL), delimiter=',', fmt="%s")
 
-np.savetxt(file[0:-4]+'_nose_closer_obj_distance.csv', 
-           fn_bpart_obj_distance_table(file, 'nose', 1, 'true'), delimiter=',', fmt="%s")
+    np.savetxt(file[0:-4]+'_nose_objR_distance.csv', 
+               fn_bpart_obj_distance_table(file, 'nose', objR), delimiter=',', fmt="%s")
+
+    np.savetxt(file[0:-4]+'_closer_obj.csv', 
+               fn_closer_obj_table(file, 'nose', objL, objR), delimiter=',', fmt="%s")
+
+    np.savetxt(file[0:-4]+'_nose_closer_obj_distance.csv', 
+               fn_bpart_obj_distance_table(file, 'nose', 1, 'true'), delimiter=',', fmt="%s")
+
+    np.savetxt(file[0:-4]+'_body_closer_obj_distance.csv', 
+               fn_bpart_obj_distance_table(file, 'body', 1, 'true'), delimiter=',', fmt="%s")
+
+
+
+fn_save_bodypart_velocity_plot (file, 'body', bcg_frame_name)
+
+fn_save_bodypart_velocity_plot (file, 'nose', bcg_frame_name)
