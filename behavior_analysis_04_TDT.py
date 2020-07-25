@@ -30,7 +30,8 @@ import matplotlib.cm as cm
 from PIL import Image
 
 #%%
-path_name = 'C:\\Users\\Kacper\\Documents\\ASD_computational_ethology\\Fmr1KO_analysis\\FXG14_KO_M_LR'
+path_name = 'C:\\Users\\Kacper\\Documents\\ASD_computational_ethology\\Fmr1KO_analysis\\FXG15_WT_M_R'
+
 #file_name = 'FXG10_WT_M_LR_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
 #file_name = 'FXG10_WT_M_LR_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
 #file_name = 'FXG10_WT_M_LR_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
@@ -51,8 +52,27 @@ path_name = 'C:\\Users\\Kacper\\Documents\\ASD_computational_ethology\\Fmr1KO_an
 
 #file_name = 'FXG14_KO_M_LR_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
 #file_name = 'FXG14_KO_M_LR_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
-file_name = 'FXG14_KO_M_LR_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG14_KO_M_LR_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
 
+#file_name = 'FXG14_KO_M_R_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG14_KO_M_R_encDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG14_KO_M_R_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+
+#file_name = 'FXG14_WT_M_L_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG14_WT_M_L_encDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG14_WT_M_L_testDLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+
+#file_name = 'FXG15_KO_M_L_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG15_KO_M_L_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG15_KO_M_L_test1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+
+#file_name = 'FXG15_KO_M_LR_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG15_KO_M_LR_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG15_KO_M_LR_test1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+
+#file_name = 'FXG15_WT_M_R_hab3DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+#file_name = 'FXG15_WT_M_R_enc1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
+file_name = 'FXG15_WT_M_R_test1DLC_resnet50_TDTv1Jul8shuffle1_126000.csv'
 
 file = path_name + '\\' + file_name
 print(file)
@@ -195,6 +215,36 @@ def fn_closer_obj_table (file, body_part, objL, objR):
     return closer_obj_table
 
 
+def fn_bpart1_bpart2_distance (file, body_part1, body_part2):
+    lines = open(file).readlines()
+    bpart1_bpart2_distance_table = []
+    for line in lines[3:]:
+        #print(line)
+        try:
+            bpart1x = fn_body_part(body_part1, 'x', line)
+            bpart1y = fn_body_part(body_part1, 'y', line)
+            bpart2x = fn_body_part(body_part2, 'x', line)
+            bpart2y = fn_body_part(body_part2, 'y', line)
+            
+            dx = bpart1x - bpart2x
+            dy = bpart1y - bpart2y
+            bpart12_distance = math.hypot(dx, dy) / calibration
+            
+            bpart1_bpart2_distance_table.append(bpart12_distance)
+        except ValueError:
+            #print("error")
+            bpart1_bpart2_distance_table.append("NaN")
+    return bpart1_bpart2_distance_table
+     
+def fn_all_bpart_distance (file):
+    all_bpart_distance = [fn_bpart1_bpart2_distance(file, 'nose', 'head'),
+           fn_bpart1_bpart2_distance(file, 'head', 'neck'),
+           fn_bpart1_bpart2_distance(file, 'neck', 'body'),
+           fn_bpart1_bpart2_distance(file, 'body', 'tail')
+           ]
+    return np.transpose(all_bpart_distance)
+
+   
 # fn_bpart_distance_moved - for selected bodypart returns table with distance in cm for each frame
 def fn_bpart_distance_moved (file, body_part):
     lines = open(file).readlines()
@@ -293,12 +343,14 @@ def fn_angle_head_nose_obj (file, obj, closer="false"):
     return angle_head_nose_obj_table
 
 
-def fn_bpart_inROI (file, body_part, obj, radius):
+def fn_bpart_inROI (file, body_part, obj, radius, closer="false"):
     lines = open(file).readlines()
     bpart_inROI_table = []
     for line in lines[3:]:
         #print(line)
         try:
+            if closer == 'true':
+                obj = fn_closer_obj('nose', objL, objR, line)
             distance = fn_bpart_obj_distance(body_part, obj, line)
             if distance <= radius:
                 bpart_inROI = 1
@@ -363,6 +415,10 @@ np.savetxt(file[0:-4]+'_body_distance.csv',
 np.savetxt(file[0:-4]+'_nose_distance.csv', 
            fn_bpart_distance_moved (file, 'nose'), delimiter=',', fmt="%s")
 
+np.savetxt(file[0:-4]+'_bparts_Euclidean_distance.csv', 
+           fn_all_bpart_distance (file), 
+           delimiter=',', fmt="%f")
+
 
 np.savetxt(file[0:-4]+'_nose_velocity.csv', 
            fn_bpart_velocity(file, 'nose'), delimiter=',', fmt="%s")
@@ -381,12 +437,18 @@ if analysis_type == 'enc' or analysis_type == 'test':
     np.savetxt(file[0:-4]+'_angle_head_nose_objR.csv', 
                fn_angle_head_nose_obj(file, objR), delimiter=',', fmt="%s")
 
+    np.savetxt(file[0:-4]+'_angle_head_nose_closerobj.csv', 
+               fn_angle_head_nose_obj(file, 1, 'true'), delimiter=',', fmt="%s")
+
 
     np.savetxt(file[0:-4]+'_ROI_nose_objL.csv', 
                fn_bpart_inROI(file, 'nose', objL, objLradius), delimiter=',', fmt="%s")
 
     np.savetxt(file[0:-4]+'_ROI_nose_objR.csv', 
                fn_bpart_inROI(file, 'nose', objR, objRradius), delimiter=',', fmt="%s")
+
+    np.savetxt(file[0:-4]+'_ROI_nose_closerobj.csv', 
+               fn_bpart_inROI(file, 'nose', 1, objRradius, 'true'), delimiter=',', fmt="%s")
 
 
     np.savetxt(file[0:-4]+'_nose_objL_distance.csv', 
