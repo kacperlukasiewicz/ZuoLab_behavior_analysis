@@ -81,23 +81,33 @@ print(file)
 analysis_type = 'test'
 
 #%%
-# video calibration
-fps = 30
-# arena measured from upper left to lower right corner
-arena_length_cm = 38
-arena_width_cm = 28
-arena_length_pxl = 455
-arena_width_pxl = 326
-calibration = ((arena_length_pxl / arena_length_cm) +  (arena_width_pxl / arena_width_cm)) / 2 #1cm = n pxl
+try:
+    parameters = open(file[0:-4]+'_parameters_log.csv').readlines()
+    fps = float(parameters[1].split(',')[1].strip())
+    calibration = float(parameters[1].split(',')[2].strip())
+except IOError: 
+    # video calibration
+    fps = 30
+    # arena measured from upper left to lower right corner
+    arena_length_cm = 38
+    arena_width_cm = 28
+    arena_length_pxl = 455
+    arena_width_pxl = 326
+    calibration = ((arena_length_pxl / arena_length_cm) +  (arena_width_pxl / arena_width_cm)) / 2 #1cm = n pxl
 
-FOV_deg = 240 #FOV in degrees
-cFOV_deg = 120 #centralFOV in degrees
-#convert deg to rad:  n deg * (pi/180) = n rad
-#convert rad to deg:  n rad * (180/pi) = n degree
-FOV_rad = FOV_deg * (math.pi / 180) #FOV in radians
-cFOV_rad = cFOV_deg * (math.pi / 180) #cFOV in radians
-FOV05_rad = FOV_rad * 0.5
-cFOV05_rad = cFOV_rad * 0.5
+try:
+    parameters = open(file[0:-4]+'_parameters_log.csv').readlines()
+    FOV_deg = float(parameters[1].split(',')[9].strip())
+    cFOV_deg = float(parameters[1].split(',')[10].strip())
+except IOError:
+    FOV_deg = 240 #FOV in degrees
+    cFOV_deg = 120 #centralFOV in degrees
+    #convert deg to rad:  n deg * (pi/180) = n rad
+    #convert rad to deg:  n rad * (180/pi) = n degree
+    FOV_rad = FOV_deg * (math.pi / 180) #FOV in radians
+    cFOV_rad = cFOV_deg * (math.pi / 180) #cFOV in radians
+    FOV05_rad = FOV_rad * 0.5
+    cFOV05_rad = cFOV_rad * 0.5
 
 #%%
 # bcg frame extraction
@@ -107,17 +117,24 @@ bcg_frame_name = file[0:-4]+'_frame01.png'
 os.system('ffmpeg -ss 00:00:01 -i {0} -vframes 1 -q:v 2 {1}'.format(video_input, bcg_frame_name))
 
 #%%
-objL = (226, 239) #object coorinates - left column
-objLradius = 50
-objR = (430, 237) #object coorinates - right column
-objRradius = 50
+try:
+    parameters = open(file[0:-4]+'_parameters_log.csv').readlines()
+    objL = (float(parameters[1].split(',')[3].strip()), float(parameters[1].split(',')[4].strip())) 
+    objLradius = float(parameters[1].split(',')[5].strip())
+    objR = (float(parameters[1].split(',')[6].strip()), float(parameters[1].split(',')[7].strip())) 
+    objRradius = float(parameters[1].split(',')[8].strip())
+except IOError:
+    objL = (226, 239) #object coorinates - left column
+    objLradius = 50
+    objR = (430, 237) #object coorinates - right column
+    objRradius = 50
 
 #%%
 def fn_parameters_log (file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg):
     log_table = []
     log = ('file', 'fps', 'calibration', 'objL_x', 'objL_y', 'objLradius', 'objR_x', 'objR_y', 'objRradius', 'FOVdeg', 'cFOVdeg')
     log_table.append(log)
-    log = (file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg)
+    log = (file, fps, calibration, objL[0], objL[1], objLradius, objR[0], objR[1], objRradius, FOV_deg, cFOV_deg)
     log_table.append(log)
     return log_table
 
@@ -406,7 +423,7 @@ print("done")
 
 #%%
 np.savetxt(file[0:-4]+'_parameters_log.csv', 
-           fn_parameters_log(file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg), delimiter=',', fmt="%s")
+           fn_parameters_log(file, fps, calibration, objL, objLradius, objR, objRradius, FOV_deg, cFOV_deg), delimiter=',', fmt='%s')
 
 
 np.savetxt(file[0:-4]+'_body_distance.csv', 
