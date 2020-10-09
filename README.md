@@ -1,2 +1,2 @@
-# ZuoLab_behavioral_analysis
+# ZuoLab_behavior_analysis
 `code`
